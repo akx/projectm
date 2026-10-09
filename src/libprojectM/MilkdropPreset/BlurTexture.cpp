@@ -184,12 +184,10 @@ void BlurTexture::Update(const Renderer::Texture& sourceTexture, const PerFrameC
         if (pass == 0)
         {
             sourceTexture.Bind(0);
-            blurShader->SetUniformInt("flipVertical", 1);
         }
         else
         {
             m_blurTextures[pass - 1]->Bind(0);
-            blurShader->SetUniformInt("flipVertical", 0);
         }
         m_blurSampler->Bind(0);
 

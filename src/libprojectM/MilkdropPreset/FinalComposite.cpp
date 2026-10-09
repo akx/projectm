@@ -121,11 +121,6 @@ void FinalComposite::Draw(const PresetState& presetState, const PerFrameContext&
     Renderer::Shader::Unbind();
 }
 
-auto FinalComposite::HasCompositeShader() const -> bool
-{
-    return m_compositeShader != nullptr;
-}
-
 void FinalComposite::InitializeMesh(const PresetState& presetState)
 {
     if (m_viewportWidth == presetState.renderContext.viewportSizeX &&

@@ -39,12 +39,6 @@ public:
     void Draw(const PresetState& presetState,
               const PerFrameContext& perFrameContext);
 
-    /**
-     * @brief Returns if the final composite is using a shader or classic filters.
-     * @return true if the final composite is done via a shader, false if not.
-     */
-    auto HasCompositeShader() const -> bool;
-
 private:
     /**
      * Composite mesh vertex with all required attributes.

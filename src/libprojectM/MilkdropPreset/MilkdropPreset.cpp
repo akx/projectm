@@ -102,10 +102,6 @@ void MilkdropPreset::RenderFrame(const libprojectM::Audio::FrameAudioData& audio
         m_motionVectors.Draw(m_perFrameContext, m_motionVectorUVMap->Texture());
     }
 
-    // y-flip the previous frame and assign the flipped texture as "main"
-    m_flipTexture.Draw(*renderContext.shaderCache, m_framebuffer.GetColorAttachmentTexture(m_previousFrameBuffer, 0), nullptr, true, false);
-    m_state.mainTexture = m_flipTexture.Texture();
-
     // We now draw to the current framebuffer.
     m_framebuffer.Bind(m_currentFrameBuffer);
 
@@ -143,21 +139,14 @@ void MilkdropPreset::RenderFrame(const libprojectM::Audio::FrameAudioData& audio
     }
     m_border.Draw(m_perFrameContext);
 
-    // y-flip the image for final compositing again
-    m_flipTexture.Draw(*renderContext.shaderCache, m_framebuffer.GetColorAttachmentTexture(m_currentFrameBuffer, 0), nullptr, true, false);
-    m_state.mainTexture = m_flipTexture.Texture();
+    // The final composite uses the current frame as its main texture.
+    m_state.mainTexture = m_framebuffer.GetColorAttachmentTexture(m_currentFrameBuffer, 0);
 
     // We no longer need the previous frame image, use it to render the final composite.
     m_framebuffer.BindRead(m_currentFrameBuffer);
     m_framebuffer.BindDraw(m_previousFrameBuffer);
 
     m_finalComposite.Draw(m_state, m_perFrameContext);
-
-    if (!m_finalComposite.HasCompositeShader())
-    {
-        // Flip texture again in "previous" framebuffer as old-school effects are still upside down.
-        m_flipTexture.Draw(*renderContext.shaderCache, m_framebuffer.GetColorAttachmentTexture(m_previousFrameBuffer, 0), m_framebuffer, m_previousFrameBuffer, true, false);
-    }
 
     // Swap framebuffer IDs for the next frame.
     std::swap(m_currentFrameBuffer, m_previousFrameBuffer);
@@ -176,7 +165,8 @@ void MilkdropPreset::DrawInitialImage(const std::shared_ptr<Renderer::Texture>& 
     m_framebuffer.SetSize(renderContext.viewportSizeX, renderContext.viewportSizeY);
 
     // Render to previous framebuffer, as this is the image used to draw the next frame on.
-    m_flipTexture.Draw(*renderContext.shaderCache, image, m_framebuffer, m_previousFrameBuffer);
+    // The image is upright, while the preset's frame buffers are stored vertically flipped.
+    m_flipTexture.Draw(*renderContext.shaderCache, image, m_framebuffer, m_previousFrameBuffer, true, false);
 }
 
 void MilkdropPreset::BindFramebuffer()

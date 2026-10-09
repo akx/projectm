@@ -161,8 +161,13 @@ public:
 
     std::map<int, Renderer::TextureSamplerDescriptor> randomTextureDescriptors; //!< Descriptors for random texture IDs. Should be the same across both warp and comp shaders.
 
-    static const glm::mat4 orthogonalProjection;        //!< Projection matrix that transforms DirectX screen-space coordinates into the OpenGL coordinate frame.
-    static const glm::mat4 orthogonalProjectionFlipped; //!< Projection matrix that transforms DirectX screen-space coordinates into the OpenGL coordinate frame.
+    /**
+     * Projection matrix that transforms DirectX screen-space coordinates into the preset's internal frame buffers.
+     * These are stored vertically flipped compared to the OpenGL coordinate frame, i.e. in DirectX row order, so
+     * Milkdrop's shader UV coordinates can sample them directly.
+     */
+    static const glm::mat4 orthogonalProjection;
+    static const glm::mat4 orthogonalProjectionFlipped; //!< Projection matrix that transforms DirectX screen-space coordinates into the OpenGL coordinate frame, used for the final, upright output image.
 };
 
 } // namespace MilkdropPreset
