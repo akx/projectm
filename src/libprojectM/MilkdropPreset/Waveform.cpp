@@ -9,7 +9,10 @@
 
 #include <../Renderer/OpenGL.h>
 
+#include <glm/gtc/matrix_transform.hpp>
+
 #include <algorithm>
+#include <array>
 #include <cmath>
 
 namespace libprojectM {
@@ -56,7 +59,45 @@ void Waveform::Draw(const PerFrameContext& presetPerFrameContext)
 
     auto smoothedVertices = m_waveformMath->GetVertices(m_presetState, presetPerFrameContext);
 
-    for (auto& smoothedWave : smoothedVertices)
+    // Upload all waves at once, then draw each wave's range of the buffer.
+    auto& vertices = m_waveMesh.Vertices().Get();
+    vertices.clear();
+    for (const auto& smoothedWave : smoothedVertices)
+    {
+        vertices.insert(vertices.end(), smoothedWave.begin(), smoothedWave.end());
+    }
+
+    if (!vertices.empty())
+    {
+        if (m_waveMesh.Indices().Size() != vertices.size())
+        {
+            m_waveMesh.Indices().Resize(vertices.size());
+            m_waveMesh.Indices().MakeContinuous();
+        }
+        m_waveMesh.Update();
+    }
+
+    m_waveMesh.SetRenderPrimitiveType(m_presetState.waveDots
+                                          ? Renderer::Mesh::PrimitiveType::Points
+                                      : m_waveformMath->IsLoop()
+                                          ? Renderer::Mesh::PrimitiveType::LineLoop
+                                          : Renderer::Mesh::PrimitiveType::LineStrip);
+
+    // Always draw "thick" dots.
+    const auto iterations = m_presetState.waveThick || m_presetState.waveDots ? 4 : 1;
+
+    const auto incrementX = 2.0f / static_cast<float>(m_presetState.renderContext.viewportSizeX);
+    const auto incrementY = 2.0f / static_cast<float>(m_presetState.renderContext.viewportSizeY);
+
+    // If thick outline is used, draw the shape four times with slight offsets
+    // (top left, top right, bottom right, bottom left).
+    const std::array<glm::vec3, 4> offsets{{{0.0f, 0.0f, 0.0f},
+                                            {incrementX, 0.0f, 0.0f},
+                                            {incrementX, incrementY, 0.0f},
+                                            {0.0f, incrementY, 0.0f}}};
+
+    size_t firstVertex = 0;
+    for (const auto& smoothedWave : smoothedVertices)
     {
         if (smoothedWave.empty())
         {
@@ -66,55 +107,13 @@ void Waveform::Draw(const PerFrameContext& presetPerFrameContext)
         m_tempAlpha = static_cast<float>(*presetPerFrameContext.wave_a);
         MaximizeColors(presetPerFrameContext);
 
-        // Always draw "thick" dots.
-        const auto iterations = m_presetState.waveThick || m_presetState.waveDots ? 4 : 1;
-
-        const auto incrementX = 2.0f / static_cast<float>(m_presetState.renderContext.viewportSizeX);
-        const auto incrementY = 2.0f / static_cast<float>(m_presetState.renderContext.viewportSizeY);
-
-        m_waveMesh.SetRenderPrimitiveType(m_presetState.waveDots
-                                              ? Renderer::Mesh::PrimitiveType::Points
-                                          : m_waveformMath->IsLoop()
-                                              ? Renderer::Mesh::PrimitiveType::LineLoop
-                                              : Renderer::Mesh::PrimitiveType::LineStrip);
-
-        // If thick outline is used, draw the shape four times with slight offsets
-        // (top left, top right, bottom right, bottom left).
         for (auto iteration = 0; iteration < iterations; iteration++)
         {
-            switch (iteration)
-            {
-                case 0:
-                    break;
-
-                case 1:
-                    for (auto j = 0U; j < smoothedWave.size(); j++)
-                    {
-                        smoothedWave[j].SetX(smoothedWave[j].X() + incrementX);
-                    }
-                    break;
-
-                case 2:
-                    for (auto j = 0U; j < smoothedWave.size(); j++)
-                    {
-                        smoothedWave[j].SetY(smoothedWave[j].Y() + incrementY);
-                    }
-                    break;
-
-                case 3:
-                    for (auto j = 0U; j < smoothedWave.size(); j++)
-                    {
-                        smoothedWave[j].SetX(smoothedWave[j].X() - incrementX);
-                    }
-                    break;
-            }
-
-            m_waveMesh.Vertices().Set(smoothedWave);
-            m_waveMesh.Indices().Resize(smoothedWave.size());
-            m_waveMesh.Indices().MakeContinuous();
-            m_waveMesh.Update();
-            m_waveMesh.Draw();
+            shader->SetUniformMat4x4("vertex_transformation", glm::translate(PresetState::orthogonalProjectionFlipped, offsets[iteration]));
+            m_waveMesh.Draw(firstVertex, smoothedWave.size());
         }
+
+        firstVertex += smoothedWave.size();
     }
 
     Renderer::BlendMode::SetBlendActive(false);;

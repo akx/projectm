@@ -5,7 +5,10 @@
 
 #include <Renderer/BlendMode.hpp>
 
+#include <glm/gtc/matrix_transform.hpp>
+
 #include <algorithm>
+#include <array>
 #include <cmath>
 
 namespace libprojectM {
@@ -196,43 +199,18 @@ void CustomWaveform::Draw(const PerFrameContext& presetPerFrameContext)
     auto incrementX = 1.0f / static_cast<float>(m_presetState.renderContext.viewportSizeX);
     auto incrementY = 1.0f / static_cast<float>(m_presetState.renderContext.viewportSizeX);
 
-    size_t smoothedVertexCount = m_mesh.Indices().Size();
-
-    auto& vertices = m_mesh.Vertices();
-
     // If thick outline is used, draw the shape four times with slight offsets
     // (top left, top right, bottom right, bottom left).
+    const std::array<glm::vec3, 4> offsets{{{0.0f, 0.0f, 0.0f},
+                                            {incrementX, 0.0f, 0.0f},
+                                            {incrementX, incrementY, 0.0f},
+                                            {0.0f, incrementY, 0.0f}}};
+
+    m_mesh.Update();
+
     for (auto iteration = 0; iteration < iterations; iteration++)
     {
-        switch (iteration)
-        {
-            case 0:
-            default:
-                break;
-
-            case 1:
-                for (size_t j = 0; j < smoothedVertexCount; j++)
-                {
-                    vertices[j].SetX(vertices[j].X() + incrementX);
-                }
-                break;
-
-            case 2:
-                for (size_t j = 0; j < smoothedVertexCount; j++)
-                {
-                    vertices[j].SetY(vertices[j].Y() + incrementY);
-                }
-                break;
-
-            case 3:
-                for (size_t j = 0; j < smoothedVertexCount; j++)
-                {
-                    vertices[j].SetX(vertices[j].X() - incrementX);
-                }
-                break;
-        }
-
-        m_mesh.Update();
+        shader->SetUniformMat4x4("vertex_transformation", glm::translate(PresetState::orthogonalProjection, offsets[iteration]));
         m_mesh.Draw();
     }
 
