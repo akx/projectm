@@ -132,6 +132,9 @@ void PerPixelMesh::InitializeMesh(const PresetState& presetState)
         return;
     }
 
+    m_viewportWidth = presetState.renderContext.viewportSizeX;
+    m_viewportHeight = presetState.renderContext.viewportSizeY;
+
     const float aspectX = presetState.renderContext.aspectX;
     const float aspectY = presetState.renderContext.aspectY;
 
@@ -195,6 +198,10 @@ void PerPixelMesh::InitializeMesh(const PresetState& presetState)
             }
         }
     }
+
+    // Vertex positions, radius/angle and indices only change here, so upload them once.
+    m_warpMesh.Update();
+    m_radiusAngleBuffer.Update();
 }
 
 void PerPixelMesh::CalculateMesh(const PresetState& presetState, const PerFrameContext& perFrameContext, PerPixelContext& perPixelContext)
@@ -272,8 +279,6 @@ void PerPixelMesh::CalculateMesh(const PresetState& presetState, const PerFrameC
         }
     }
 
-    m_warpMesh.Update();
-    m_radiusAngleBuffer.Update();
     m_zoomRotWarpBuffer.Update();
     m_centerBuffer.Update();
     m_distanceBuffer.Update();
