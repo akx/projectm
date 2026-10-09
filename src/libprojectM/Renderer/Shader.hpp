@@ -194,7 +194,16 @@ private:
      */
     auto CompileShader(const std::string& source, GLenum type) -> GLuint;
 
+    /**
+     * @brief Returns the location of the given uniform, caching the result.
+     * @param uniform The uniform name.
+     * @return The uniform location, or -1 if the program has no such active uniform.
+     */
+    auto GetUniformLocation(const char* uniform) const -> GLint;
+
     GLuint m_shaderProgram{}; //!< The program ID.
+
+    mutable std::map<std::string, GLint, std::less<>> m_uniformLocations; //!< Cached uniform locations, keyed by name.
 };
 
 } // namespace Renderer
