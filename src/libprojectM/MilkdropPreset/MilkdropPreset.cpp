@@ -102,17 +102,14 @@ void MilkdropPreset::RenderFrame(const libprojectM::Audio::FrameAudioData& audio
         m_motionVectors.Draw(m_perFrameContext, m_motionVectorUVMap->Texture());
     }
 
-    // We now draw to the current framebuffer.
-    m_framebuffer.Bind(m_currentFrameBuffer);
-
-    // Add motion vector u/v texture for the warp mesh draw and clean both buffers.
-    m_framebuffer.SetAttachment(m_currentFrameBuffer, 1, m_motionVectorUVMap);
-
-    // Draw previous frame image warped via per-pixel mesh and warp shader
+    // Draw previous frame image warped via per-pixel mesh and warp shader into the current frame.
+    // The warp framebuffer also writes the motion vector u/v texture.
+    UpdateWarpFramebuffer(m_currentFrameBuffer);
+    m_framebuffer.Bind(m_currentFrameBuffer + 2);
     m_perPixelMesh.Draw(m_state, m_perFrameContext, m_perPixelContext);
 
-    // Remove the u/v texture from the framebuffer.
-    m_framebuffer.RemoveColorAttachment(m_currentFrameBuffer, 1);
+    // We now draw to the current framebuffer.
+    m_framebuffer.Bind(m_currentFrameBuffer);
 
     // Update blur textures
     {
@@ -167,6 +164,17 @@ void MilkdropPreset::DrawInitialImage(const std::shared_ptr<Renderer::Texture>& 
     // Render to previous framebuffer, as this is the image used to draw the next frame on.
     // The image is upright, while the preset's frame buffers are stored vertically flipped.
     m_flipTexture.Draw(*renderContext.shaderCache, image, m_framebuffer, m_previousFrameBuffer, true, false);
+}
+
+void MilkdropPreset::UpdateWarpFramebuffer(int framebufferIndex)
+{
+    // The main image attachment is replaced when drawing the initial image, so check if it's still the same.
+    auto mainImage = m_framebuffer.GetAttachment(framebufferIndex, Renderer::TextureAttachment::AttachmentType::Color, 0);
+    if (m_framebuffer.GetAttachment(framebufferIndex + 2, Renderer::TextureAttachment::AttachmentType::Color, 0) != mainImage)
+    {
+        m_framebuffer.RemoveColorAttachment(framebufferIndex + 2, 0);
+        m_framebuffer.SetAttachment(framebufferIndex + 2, 0, mainImage);
+    }
 }
 
 void MilkdropPreset::BindFramebuffer()
@@ -231,6 +239,8 @@ void MilkdropPreset::InitializePreset(PresetFileParser& parsedFile)
     m_motionVectorUVMap = std::make_shared<Renderer::TextureAttachment>(GL_RG16F, GL_RG, GL_FLOAT, 0, 0);
     m_framebuffer.CreateColorAttachment(0, 0); // Main image 1
     m_framebuffer.CreateColorAttachment(1, 0); // Main image 2
+    m_framebuffer.SetAttachment(2, 1, m_motionVectorUVMap); // Main image 1 warp
+    m_framebuffer.SetAttachment(3, 1, m_motionVectorUVMap); // Main image 2 warp
 
     Renderer::Framebuffer::Unbind();
 

@@ -102,12 +102,18 @@ private:
      */
     void LoadShaderCode();
 
+    /**
+     * @brief Makes sure the warp framebuffer for the given surface draws to that surface's main image.
+     * @param framebufferIndex The surface index, either 0 or 1.
+     */
+    void UpdateWarpFramebuffer(int framebufferIndex);
+
     auto ParseFilename(const std::string& filename) -> std::string;
 
     std::string m_absoluteFilePath; //!< The absolute file path of the MilkdropPreset
     std::string m_absolutePath;     //!< The absolute path of the MilkdropPreset
 
-    Renderer::Framebuffer m_framebuffer{2};                           //!< Preset rendering framebuffer with two surfaces (last frame and current frame).
+    Renderer::Framebuffer m_framebuffer{4};                           //!< Preset rendering framebuffer with two surfaces (last frame and current frame), plus a warp framebuffer for each (index + 2), which additionally has the motion vector u/v map attached.
     int m_currentFrameBuffer{0};                                      //!< Framebuffer ID of the current frame.
     int m_previousFrameBuffer{1};                                     //!< Framebuffer ID of the previous frame.
     std::shared_ptr<Renderer::TextureAttachment> m_motionVectorUVMap; //!< The UV map of the previous frame's warp mesh, used for motion vector reverse propagation.
