@@ -61,8 +61,6 @@ void MotionVectors::Draw(const PerFrameContext& presetPerFrameContext, std::shar
     float const inverseHeight = 1.25f / static_cast<float>(m_presetState.renderContext.viewportSizeY);
     float const minimumLength = sqrtf(inverseWidth * inverseWidth + inverseHeight * inverseHeight);
 
-    m_motionVectorMesh.SetVertexCount(static_cast<std::size_t>(countX + 1) * 2); // countX + 1 lines for each grid row, 2 vertices each.
-
     Renderer::BlendMode::Set(true, Renderer::BlendMode::Function::SourceAlpha, Renderer::BlendMode::Function::OneMinusSourceAlpha);
 
     auto shader = GetShader();
@@ -86,7 +84,9 @@ void MotionVectors::Draw(const PerFrameContext& presetPerFrameContext, std::shar
     glEnable(GL_LINE_SMOOTH);
 #endif
 
-    auto& lineVertices = m_motionVectorMesh.Vertices();
+    // Collect the lines of all grid rows, 2 vertices each, and draw them at once.
+    auto& lineVertices = m_motionVectorMesh.Vertices().Get();
+    lineVertices.clear();
 
     for (int y = 0; y < countY; y++)
     {
@@ -94,23 +94,29 @@ void MotionVectors::Draw(const PerFrameContext& presetPerFrameContext, std::shar
 
         if (posY > 0.0001f && posY < 0.9999f)
         {
-            int vertex = 0;
             for (int x = 0; x < countX; x++)
             {
                 float const posX = (static_cast<float>(x) + 0.25f) / (static_cast<float>(countX) + divertX + 0.25f - 1.0f) + divertX2;
 
                 if (posX > 0.0001f && posX < 0.9999f)
                 {
-                    lineVertices[vertex + 1] = lineVertices[vertex] = {posX, posY};
-
-                    vertex += 2;
+                    lineVertices.emplace_back(posX, posY);
+                    lineVertices.emplace_back(posX, posY);
                 }
             }
-
-            // Draw a row of lines.
-            m_motionVectorMesh.Update();
-            m_motionVectorMesh.Draw();
         }
+    }
+
+    if (!lineVertices.empty())
+    {
+        if (m_motionVectorMesh.Indices().Size() != lineVertices.size())
+        {
+            m_motionVectorMesh.Indices().Resize(lineVertices.size());
+            m_motionVectorMesh.Indices().MakeContinuous();
+        }
+
+        m_motionVectorMesh.Update();
+        m_motionVectorMesh.Draw();
     }
 
     Renderer::Mesh::Unbind();
