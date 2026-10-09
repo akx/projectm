@@ -337,6 +337,17 @@ public:
      */
     void Draw();
 
+    /**
+     * @brief Draws a part of the current geometry stored in the GPU.
+     * Unlike Draw(), the index buffer must already contain the required indices.
+     * @note Before calling this method, the caller has to ensure that all buffers have the correct
+     * length and were properly uploaded to the GPU by calling Update().
+     * @note This method binds and unbinds the stored vertex array object.
+     * @param firstIndex The first entry in the vertex index buffer to draw.
+     * @param indexCount The number of vertex indices to draw.
+     */
+    void Draw(size_t firstIndex, size_t indexCount);
+
 private:
     /**
      * Binds the internal buffers to the vertex array object and initializes the array pointers.

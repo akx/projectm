@@ -119,6 +119,13 @@ void Mesh::Draw()
         m_indices.Update();
     }
 
+    Draw(0, m_indices.Size());
+}
+
+void Mesh::Draw(size_t firstIndex, size_t indexCount)
+{
+    m_vertexArray.Bind();
+
     GLuint primitiveType{GL_LINES};
     switch (m_primitiveType)
     {
@@ -145,7 +152,8 @@ void Mesh::Draw()
             break;
     }
 
-    glDrawElements(primitiveType, m_indices.Size(), GL_UNSIGNED_INT, nullptr);
+    glDrawElements(primitiveType, static_cast<GLsizei>(indexCount), GL_UNSIGNED_INT,
+                   reinterpret_cast<const void*>(firstIndex * sizeof(uint32_t)));
 
     VertexArray::Unbind();
 }

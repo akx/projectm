@@ -8,6 +8,8 @@
 
 #include <projectm-eval.h>
 
+#include <vector>
+
 namespace libprojectM {
 namespace MilkdropPreset {
 
@@ -16,8 +18,8 @@ class PresetFileParser;
 /**
  * @brief Renders a custom shape with or without a texture.
  *
- * The class creates two sets of VBO/VAO as it's only known later (in the Draw() call) whether the shape is textured
- * or not.
+ * The geometry of all instances is collected into one fill and one outline mesh, uploaded once per frame and then
+ * drawn instance by instance, merging consecutive fills with the same render state into a single draw call.
  */
 class CustomShape
 {
@@ -45,8 +47,23 @@ public:
     void Draw();
 
 private:
-    Renderer::Mesh m_outlineMesh; //!< The shape's border/outline mesh.
-    Renderer::Mesh m_fillMesh; //!< The shape's color/texture mesh.
+    /**
+     * @brief Draw parameters of a single shape instance, referencing the fill and outline mesh buffers.
+     */
+    struct InstanceDrawInfo {
+        bool additive{false};           //!< If true, the instance is drawn additively.
+        bool textured{false};           //!< If true, the fill is drawn with a texture.
+        uint32_t fillFirstIndex{};      //!< First fill mesh index of this instance.
+        uint32_t fillIndexCount{};      //!< Number of fill mesh indices of this instance.
+        Renderer::Color borderColor;    //!< The outline color.
+        uint32_t outlineFirstVertex{};  //!< First outline mesh vertex of this instance.
+        uint32_t outlineVertexCount{};  //!< Number of outline vertices per iteration.
+        uint32_t outlineIterations{};   //!< Number of times the outline is drawn, 0 if there's no outline.
+    };
+
+    Renderer::Mesh m_outlineMesh; //!< The border/outline mesh for all shape instances.
+    Renderer::Mesh m_fillMesh; //!< The color/texture mesh for all shape instances.
+    std::vector<InstanceDrawInfo> m_instanceDrawInfo; //!< Draw parameters of each instance in the current frame.
 
     std::string m_image; //!< Texture filename to be rendered on this shape.
 
