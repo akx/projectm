@@ -103,6 +103,13 @@ private:
                        PerPixelContext& perPixelContext);
 
     /**
+     * @brief Switches between per-vertex buffers and constant values for the transformation attributes.
+     * @param enable If true, the zoom/rot/warp, center, distance and stretch attributes are read
+     *               from the vertex buffers. If false, the constant vertex attribute values are used.
+     */
+    void SetUsePerVertexBuffers(bool enable);
+
+    /**
      * @brief Draws the warp mesh with or without a warp shader.
      * If the preset doesn't use a warp shader, a default textured shader is used.
      */
@@ -127,6 +134,7 @@ private:
     Renderer::VertexBuffer<Renderer::Point> m_centerBuffer{Renderer::VertexBufferUsage::StreamDraw};   //!< Vertex attribute buffer for center coordinate values.
     Renderer::VertexBuffer<Renderer::Point> m_distanceBuffer{Renderer::VertexBufferUsage::StreamDraw}; //!< Vertex attribute buffer for distance values.
     Renderer::VertexBuffer<Renderer::Point> m_stretchBuffer{Renderer::VertexBufferUsage::StreamDraw};  //!< Vertex attribute buffer for stretch values.
+    bool m_usePerVertexBuffers{true};                                                                  //!< If false, the above four buffers are replaced by constant vertex attributes.
 
     std::weak_ptr<Renderer::Shader> m_perPixelMeshShader;             //!< Special shader which calculates the per-pixel UV coordinates.
     std::unique_ptr<MilkdropShader> m_warpShader;                     //!< The warp shader. Either preset-defined or a default shader.

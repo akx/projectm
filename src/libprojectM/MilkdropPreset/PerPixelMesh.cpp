@@ -218,6 +218,20 @@ void PerPixelMesh::CalculateMesh(const PresetState& presetState, const PerFrameC
     float sx = static_cast<float>(*perFrameContext.sx);
     float sy = static_cast<float>(*perFrameContext.sy);
 
+    if (!perPixelContext.perPixelCodeHandle)
+    {
+        // Without per-vertex code, all vertices use the same per-frame values. Pass them as constant
+        // vertex attributes instead of filling and uploading the buffers with identical values.
+        SetUsePerVertexBuffers(false);
+        glVertexAttrib4f(4, zoom, zoomExp, rot, warp);
+        glVertexAttrib2f(5, cx, cy);
+        glVertexAttrib2f(6, dx, dy);
+        glVertexAttrib2f(7, sx, sy);
+        return;
+    }
+
+    SetUsePerVertexBuffers(true);
+
     int vertex = 0;
 
     // Can't make this multithreaded as per-pixel code may use gmegabuf or regXX vars.
@@ -233,47 +247,34 @@ void PerPixelMesh::CalculateMesh(const PresetState& presetState, const PerFrameC
             auto& curDistance = m_distanceBuffer[vertex];
             auto& curStretch = m_stretchBuffer[vertex];
 
-            // Execute per-vertex/per-pixel code if the preset uses it.
-            if (perPixelContext.perPixelCodeHandle)
-            {
-                *perPixelContext.x = static_cast<double>(curVertex.X() * 0.5f * presetState.renderContext.aspectX + 0.5f);
-                *perPixelContext.y = static_cast<double>(curVertex.Y() * 0.5f * presetState.renderContext.aspectY + 0.5f);
-                *perPixelContext.rad = static_cast<double>(curRadiusAngle.radius);
-                *perPixelContext.ang = static_cast<double>(-curRadiusAngle.angle);
-                *perPixelContext.zoom = static_cast<double>(*perFrameContext.zoom);
-                *perPixelContext.zoomexp = static_cast<double>(*perFrameContext.zoomexp);
-                *perPixelContext.rot = static_cast<double>(*perFrameContext.rot);
-                *perPixelContext.warp = static_cast<double>(*perFrameContext.warp);
-                *perPixelContext.cx = static_cast<double>(*perFrameContext.cx);
-                *perPixelContext.cy = static_cast<double>(*perFrameContext.cy);
-                *perPixelContext.dx = static_cast<double>(*perFrameContext.dx);
-                *perPixelContext.dy = static_cast<double>(*perFrameContext.dy);
-                *perPixelContext.sx = static_cast<double>(*perFrameContext.sx);
-                *perPixelContext.sy = static_cast<double>(*perFrameContext.sy);
+            // Execute the per-vertex/per-pixel code.
+            *perPixelContext.x = static_cast<double>(curVertex.X() * 0.5f * presetState.renderContext.aspectX + 0.5f);
+            *perPixelContext.y = static_cast<double>(curVertex.Y() * 0.5f * presetState.renderContext.aspectY + 0.5f);
+            *perPixelContext.rad = static_cast<double>(curRadiusAngle.radius);
+            *perPixelContext.ang = static_cast<double>(-curRadiusAngle.angle);
+            *perPixelContext.zoom = static_cast<double>(*perFrameContext.zoom);
+            *perPixelContext.zoomexp = static_cast<double>(*perFrameContext.zoomexp);
+            *perPixelContext.rot = static_cast<double>(*perFrameContext.rot);
+            *perPixelContext.warp = static_cast<double>(*perFrameContext.warp);
+            *perPixelContext.cx = static_cast<double>(*perFrameContext.cx);
+            *perPixelContext.cy = static_cast<double>(*perFrameContext.cy);
+            *perPixelContext.dx = static_cast<double>(*perFrameContext.dx);
+            *perPixelContext.dy = static_cast<double>(*perFrameContext.dy);
+            *perPixelContext.sx = static_cast<double>(*perFrameContext.sx);
+            *perPixelContext.sy = static_cast<double>(*perFrameContext.sy);
 
-                perPixelContext.ExecutePerPixelCode();
+            perPixelContext.ExecutePerPixelCode();
 
-                curZoomRotWarp.zoom = static_cast<float>(*perPixelContext.zoom);
-                curZoomRotWarp.zoomExp = static_cast<float>(*perPixelContext.zoomexp);
-                curZoomRotWarp.rot = static_cast<float>(*perPixelContext.rot);
-                curZoomRotWarp.warp = static_cast<float>(*perPixelContext.warp);
-                curCenter = {static_cast<float>(*perPixelContext.cx),
-                             static_cast<float>(*perPixelContext.cy)};
-                curDistance = {static_cast<float>(*perPixelContext.dx),
-                               static_cast<float>(*perPixelContext.dy)};
-                curStretch = {static_cast<float>(*perPixelContext.sx),
-                              static_cast<float>(*perPixelContext.sy)};
-            }
-            else
-            {
-                curZoomRotWarp.zoom = zoom;
-                curZoomRotWarp.zoomExp = zoomExp;
-                curZoomRotWarp.rot = rot;
-                curZoomRotWarp.warp = warp;
-                curCenter = { cx, cy};
-                curDistance = {dx, dy};
-                curStretch = {sx, sy};
-            }
+            curZoomRotWarp.zoom = static_cast<float>(*perPixelContext.zoom);
+            curZoomRotWarp.zoomExp = static_cast<float>(*perPixelContext.zoomexp);
+            curZoomRotWarp.rot = static_cast<float>(*perPixelContext.rot);
+            curZoomRotWarp.warp = static_cast<float>(*perPixelContext.warp);
+            curCenter = {static_cast<float>(*perPixelContext.cx),
+                         static_cast<float>(*perPixelContext.cy)};
+            curDistance = {static_cast<float>(*perPixelContext.dx),
+                           static_cast<float>(*perPixelContext.dy)};
+            curStretch = {static_cast<float>(*perPixelContext.sx),
+                          static_cast<float>(*perPixelContext.sy)};
 
             vertex++;
         }
@@ -283,6 +284,23 @@ void PerPixelMesh::CalculateMesh(const PresetState& presetState, const PerFrameC
     m_centerBuffer.Update();
     m_distanceBuffer.Update();
     m_stretchBuffer.Update();
+}
+
+void PerPixelMesh::SetUsePerVertexBuffers(bool enable)
+{
+    if (m_usePerVertexBuffers == enable)
+    {
+        return;
+    }
+
+    m_usePerVertexBuffers = enable;
+
+    // The enabled state of the attribute arrays is stored in the mesh's vertex array object.
+    m_warpMesh.Bind();
+    for (uint32_t attributeIndex = 4; attributeIndex <= 7; attributeIndex++)
+    {
+        Renderer::VertexBuffer<Renderer::Point>::SetEnableAttributeArray(attributeIndex, enable);
+    }
 }
 
 void PerPixelMesh::WarpedBlit(const PresetState& presetState,
