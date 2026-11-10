@@ -24,10 +24,6 @@ CustomWaveform::CustomWaveform(PresetState& presetState)
 {
     m_perFrameContext.RegisterBuiltinVariables();
     m_perPointContext.RegisterBuiltinVariables();
-
-    // Allocate space for max number of vertices possible, so we won't have to resize the vertex
-    // buffers, which may change on each frame.
-    m_mesh.SetVertexCount(std::max(Audio::SpectrumSamples, Audio::WaveformSamples) * 2 + 2);
 }
 
 void CustomWaveform::Initialize(PresetFileParser& parsedFile, int index)
@@ -151,8 +147,11 @@ void CustomWaveform::Draw(const PerFrameContext& presetPerFrameContext)
         sampleDataR[sample] *= mult;
     }
 
-    std::vector<Renderer::Point> points(sampleCount);
-    std::vector<Renderer::Color> colors(sampleCount);
+    // All elements are overwritten below, so the buffers of the previous frame can be reused.
+    auto& points = m_points;
+    auto& colors = m_colors;
+    points.resize(sampleCount);
+    colors.resize(sampleCount);
 
     float const sampleMultiplicator = sampleCount > 1 ? 1.0f / static_cast<float>(sampleCount - 1) : 0.0f;
     for (int sample = 0; sample < sampleCount; sample++)
@@ -171,7 +170,7 @@ void CustomWaveform::Draw(const PerFrameContext& presetPerFrameContext)
                                                                  static_cast<float>(*m_perPointContext.a)));
     }
 
-    SmoothWave(points, colors);
+    const bool indicesChanged = SmoothWave(points, colors);
 
 #ifndef USE_GLES
     glDisable(GL_LINE_SMOOTH);
@@ -206,7 +205,17 @@ void CustomWaveform::Draw(const PerFrameContext& presetPerFrameContext)
                                             {incrementX, incrementY, 0.0f},
                                             {0.0f, incrementY, 0.0f}}};
 
-    m_mesh.Update();
+    if (indicesChanged)
+    {
+        m_mesh.Update();
+    }
+    else
+    {
+        // The indices are continuous and only depend on the vertex count, no need to upload them again.
+        m_mesh.Bind();
+        m_mesh.Vertices().Update();
+        m_mesh.Colors().Update();
+    }
 
     for (auto iteration = 0; iteration < iterations; iteration++)
     {
@@ -250,7 +259,7 @@ void CustomWaveform::LoadPerPointEvaluationVariables(float sample, float value1,
     *m_perPointContext.a = *m_perFrameContext.a;
 }
 
-void CustomWaveform::SmoothWave(const std::vector<Renderer::Point>& points, const std::vector<Renderer::Color>& colors)
+auto CustomWaveform::SmoothWave(const std::vector<Renderer::Point>& points, const std::vector<Renderer::Color>& colors) -> bool
 {
     constexpr float c1{-0.15f};
     constexpr float c2{1.15f};
@@ -263,6 +272,9 @@ void CustomWaveform::SmoothWave(const std::vector<Renderer::Point>& points, cons
     size_t iAbove2 = 1;
 
     size_t vertexCount = points.size();
+
+    // Only store and upload as many vertices as are actually drawn.
+    m_mesh.SetVertexCount(static_cast<uint32_t>(vertexCount * 2 - 1));
 
     auto& outVertices = m_mesh.Vertices();
     auto& outColors = m_mesh.Colors();
@@ -286,8 +298,15 @@ void CustomWaveform::SmoothWave(const std::vector<Renderer::Point>& points, cons
     outColors[outputIndex] = colors[vertexCount - 1];
 
     auto& indices = m_mesh.Indices();
+    if (indices.Size() == outputIndex + 1)
+    {
+        return false;
+    }
+
     indices.Resize(outputIndex + 1);
     indices.MakeContinuous();
+
+    return true;
 }
 
 } // namespace MilkdropPreset

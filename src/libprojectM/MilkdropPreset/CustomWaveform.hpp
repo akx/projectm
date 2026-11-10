@@ -71,8 +71,9 @@ private:
      *
      * @param points A vector of points to be smoothed.
      * @param colors A vector of colors for the points.
+     * @return true if the vertex count has changed and the index buffer was rebuilt, false if not.
      */
-    void SmoothWave(const std::vector<Renderer::Point>& points, const std::vector<Renderer::Color>& colors);
+    auto SmoothWave(const std::vector<Renderer::Point>& points, const std::vector<Renderer::Color>& colors) -> bool;
 
     int m_index{0}; //!< Custom waveform index in the preset.
     bool m_enabled{false}; //!< Render waveform if non-zero.
@@ -96,6 +97,9 @@ private:
     PresetState& m_presetState; //!< The global preset state.
     WaveformPerFrameContext m_perFrameContext; //!< Holds the code execution context for per-frame expressions
     WaveformPerPointContext m_perPointContext; //!< Holds the code execution context for per-point expressions
+
+    std::vector<Renderer::Point> m_points; //!< Evaluated per-point positions before smoothing, reused each frame.
+    std::vector<Renderer::Color> m_colors; //!< Evaluated per-point colors before smoothing, reused each frame.
 
     Renderer::Mesh m_mesh; //!< Points in this waveform.
 
