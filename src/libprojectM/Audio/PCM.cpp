@@ -105,8 +105,10 @@ auto PCM::GetFrameAudioData() const -> FrameAudioData
 
 void PCM::UpdateSpectrum(const WaveformBuffer& waveformData, SpectrumBuffer& spectrumData)
 {
-    std::vector<float> waveformSamples(AudioBufferSamples);
-    std::vector<float> spectrumValues;
+    // Reuse the buffers to avoid allocating them for each channel on every frame.
+    auto& waveformSamples = m_fftInput;
+    auto& spectrumValues = m_fftOutput;
+    waveformSamples.resize(AudioBufferSamples);
 
     size_t oldI{0};
     for (size_t i = 0; i < AudioBufferSamples; i++)

@@ -156,7 +156,9 @@ void MilkdropFFT::TimeToFrequencyDomain(const std::vector<float>& waveformData, 
     }
 
     // 1. Set up input to the FFT
-    std::vector<std::complex<float>> spectrumData(m_numFrequencies, std::complex<float>());
+    // Reuse the working buffer to avoid allocating it on every call.
+    auto& spectrumData = m_spectrumData;
+    spectrumData.assign(m_numFrequencies, std::complex<float>());
     for (size_t i = 0; i < m_numFrequencies; i++)
     {
         size_t const idx{m_bitRevTable[i]};

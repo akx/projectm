@@ -21,6 +21,7 @@ WaveformAligner::WaveformAligner()
     m_octaveSamples.resize(m_octaves);
     m_octaveSampleSpacing.resize(m_octaves);
     m_oldWaveformMips.resize(m_octaves);
+    m_newWaveformMips.resize(m_octaves);
 
     m_octaveSamples[0] = AudioBufferSamples;
     m_octaveSampleSpacing[0] = AudioBufferSamples - WaveformSamples;
@@ -200,7 +201,9 @@ void WaveformAligner::Align(WaveformBuffer& newWaveform)
     }
 
 
-    std::vector<WaveformBuffer> newWaveformMips(m_octaves, WaveformBuffer());
+    // Reuse the buffers to avoid allocating them on every frame. Resampling overwrites all samples
+    // used in each octave, and the remaining ones are never written to and stay zero.
+    auto& newWaveformMips = m_newWaveformMips;
     ResampleOctaves(newWaveformMips, newWaveform);
 
     if (!m_alignWaveReady)

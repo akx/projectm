@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <mutex>
+#include <vector>
 
 
 namespace libprojectM {
@@ -105,6 +106,8 @@ private:
     SpectrumBuffer m_spectrumR{0.f}; //!< Right-channel spectrum data.
 
     MilkdropFFT m_fft{WaveformSamples, SpectrumSamples, true}; //!< Spectrum analyzer instance.
+    std::vector<float> m_fftInput;                             //!< Damped waveform samples passed to the spectrum analyzer, reused each frame.
+    std::vector<float> m_fftOutput;                            //!< Spectrum values returned by the spectrum analyzer, reused each frame.
 
     // Alignment data
     WaveformAligner m_alignL; //!< Left-channel waveform alignment.
