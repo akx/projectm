@@ -27,8 +27,7 @@ PresetTransition::PresetTransition(const std::shared_ptr<Shader>& transitionShad
 
     m_mesh.Update();
 
-    std::mt19937 rand32(m_randomDevice());
-    m_staticRandomValues = {rand32(), rand32(), rand32(), rand32()};
+    m_staticRandomValues = {m_randomGenerator(), m_randomGenerator(), m_randomGenerator(), m_randomGenerator()};
 }
 
 auto PresetTransition::IsDone(double currentFrameTime) const -> bool
@@ -52,8 +51,6 @@ void PresetTransition::Draw(const Preset& oldPreset,
     {
         return;
     }
-
-    std::mt19937 rand32(m_randomDevice());
 
     // Calculate progress values
     const auto secondsSinceStart = currentFrameTime - m_transitionStartTime;
@@ -87,10 +84,10 @@ void PresetTransition::Draw(const Preset& oldPreset,
 
     m_transitionShader->SetUniformInt4("iRandStatic", m_staticRandomValues);
 
-    m_transitionShader->SetUniformInt4("iRandFrame", {rand32(),
-                                                      rand32(),
-                                                      rand32(),
-                                                      rand32()});
+    m_transitionShader->SetUniformInt4("iRandFrame", {m_randomGenerator(),
+                                                      m_randomGenerator(),
+                                                      m_randomGenerator(),
+                                                      m_randomGenerator()});
 
     m_transitionShader->SetUniformFloat3("iBeatValues", {audioData.bass,
                                                          audioData.mid,

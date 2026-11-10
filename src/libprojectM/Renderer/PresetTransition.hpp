@@ -80,7 +80,7 @@ private:
 
     glm::ivec4 m_staticRandomValues{}; //!< Four random integers, remaining static during the whole transition.
 
-    std::random_device m_randomDevice; //!< Seed for the random number generator
+    std::mt19937 m_randomGenerator{std::random_device{}()}; //!< Random number generator for the static and per-frame random values, seeded once.
 };
 
 } // namespace Renderer
