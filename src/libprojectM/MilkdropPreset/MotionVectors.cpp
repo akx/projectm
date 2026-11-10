@@ -18,21 +18,23 @@ MotionVectors::MotionVectors(PresetState& presetState)
     m_motionVectorMesh.SetRenderPrimitiveType(Renderer::Mesh::PrimitiveType::Lines);
 }
 
+auto MotionVectors::IsVisible(const PerFrameContext& presetPerFrameContext) const -> bool
+{
+    return *presetPerFrameContext.mv_a >= 0.0001f &&
+           static_cast<int>(*presetPerFrameContext.mv_x) > 0 &&
+           static_cast<int>(*presetPerFrameContext.mv_y) > 0;
+}
+
 void MotionVectors::Draw(const PerFrameContext& presetPerFrameContext, std::shared_ptr<Renderer::Texture> motionTexture)
 {
     // Don't draw if invisible.
-    if (*presetPerFrameContext.mv_a < 0.0001f)
+    if (!IsVisible(presetPerFrameContext))
     {
         return;
     }
 
     int countX = static_cast<int>(*presetPerFrameContext.mv_x);
     int countY = static_cast<int>(*presetPerFrameContext.mv_y);
-
-    if (countX <= 0 || countY <= 0)
-    {
-        return;
-    }
 
     float divertX = static_cast<float>(*presetPerFrameContext.mv_x) - static_cast<float>(countX);
     float divertY = static_cast<float>(*presetPerFrameContext.mv_y) - static_cast<float>(countY);

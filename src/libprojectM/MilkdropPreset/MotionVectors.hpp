@@ -26,6 +26,13 @@ public:
     explicit MotionVectors(PresetState& presetState);
 
     /**
+     * Checks if the current per-frame values result in any motion vectors being drawn.
+     * @param presetPerFrameContext The per-frame context variables.
+     * @return true if the motion vectors are visible, false if not.
+     */
+    auto IsVisible(const PerFrameContext& presetPerFrameContext) const -> bool;
+
+    /**
      * Renders the motion vectors.
      * @param presetPerFrameContext The per-frame context variables.
      * @param motionTexture The u/v "motion" texture written by the warp shader.

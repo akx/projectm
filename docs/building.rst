@@ -521,6 +521,10 @@ developing libprojectM, trying experimental features or building the library for
      - ``OFF``
      -
      - Enables code for ``TRACE`` and ``DEBUG`` log levels in release builds. By default, these will only be compiled for ``Debug`` builds. Enabling this will negatively affect performance, even if the actual log level is set to ``INFORMATION`` or higher.
+   * - ``ENABLE_LAZY_MOTION_VECTOR_MAP``
+     - ``ON``
+     -
+     - Only writes the u/v map used to draw motion vectors while a preset actually displays them, saving a full-screen render target write per frame for all other presets. As a side effect, motion vectors appear one frame late after a preset turns them on. Disable this to always write the map and draw motion vectors exactly as before, which defines ``PROJECTM_ALWAYS_WRITE_MOTION_VECTOR_MAP`` when compiling.
 
 Path options
 ^^^^^^^^^^^^

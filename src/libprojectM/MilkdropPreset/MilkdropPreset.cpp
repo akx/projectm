@@ -84,7 +84,7 @@ void MilkdropPreset::RenderFrame(const libprojectM::Audio::FrameAudioData& audio
     if (m_framebuffer.SetSize(renderContext.viewportSizeX, renderContext.viewportSizeY))
     {
         m_motionVectorUVMap->SetSize(renderContext.viewportSizeX, renderContext.viewportSizeY);
-        m_isFirstFrame = true;
+        m_motionVectorUVMapValid = false;
     }
 
     m_state.mainTexture = m_framebuffer.GetColorAttachmentTexture(m_previousFrameBuffer, 0);
@@ -96,17 +96,37 @@ void MilkdropPreset::RenderFrame(const libprojectM::Audio::FrameAudioData& audio
 
     m_framebuffer.Bind(m_previousFrameBuffer);
     // Motion vector field. Drawn to the previous frame texture before warping it.
-    // Only do it after drawing one frame after init or resize.
-    if (!m_isFirstFrame)
+    // This needs the u/v map written by the previous frame's warp pass, so the vectors can't be
+    // drawn in the first frame after init or resize.
+    if (m_motionVectorUVMapValid)
     {
         m_motionVectors.Draw(m_perFrameContext, m_motionVectorUVMap->Texture());
     }
 
+#ifdef PROJECTM_ALWAYS_WRITE_MOTION_VECTOR_MAP
+    const bool writeMotionVectorUVMap = true;
+#else
+    // The u/v map is only read when drawing the next frame's motion vectors, and most presets never
+    // show any. Whether they're visible is only known after running the next frame's per-frame code,
+    // so only write the map if they're visible in this frame. If a preset turns the motion vectors
+    // on, they will thus only appear with a delay of one frame.
+    const bool writeMotionVectorUVMap = m_motionVectors.IsVisible(m_perFrameContext);
+#endif
+
     // Draw previous frame image warped via per-pixel mesh and warp shader into the current frame.
-    // The warp framebuffer also writes the motion vector u/v texture.
-    UpdateWarpFramebuffer(m_currentFrameBuffer);
-    m_framebuffer.Bind(m_currentFrameBuffer + 2);
+    if (writeMotionVectorUVMap)
+    {
+        // The warp framebuffer has the motion vector u/v texture as a second color attachment.
+        UpdateWarpFramebuffer(m_currentFrameBuffer);
+        m_framebuffer.Bind(m_currentFrameBuffer + 2);
+    }
+    else
+    {
+        // The second output of the warp shader is discarded.
+        m_framebuffer.Bind(m_currentFrameBuffer);
+    }
     m_perPixelMesh.Draw(m_state, m_perFrameContext, m_perPixelContext);
+    m_motionVectorUVMapValid = writeMotionVectorUVMap;
 
     // Update blur textures
     {
@@ -147,8 +167,6 @@ void MilkdropPreset::RenderFrame(const libprojectM::Audio::FrameAudioData& audio
 
     // Swap framebuffer IDs for the next frame.
     std::swap(m_currentFrameBuffer, m_previousFrameBuffer);
-
-    m_isFirstFrame = false;
 }
 
 auto MilkdropPreset::OutputTexture() const -> std::shared_ptr<Renderer::Texture>

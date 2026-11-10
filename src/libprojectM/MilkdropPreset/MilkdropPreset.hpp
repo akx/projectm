@@ -134,7 +134,7 @@ private:
 
     FinalComposite m_finalComposite; //!< Final composite shader or filters.
 
-    bool m_isFirstFrame{true}; //!< Controls drawing the motion vectors starting with the second frame.
+    bool m_motionVectorUVMapValid{false}; //!< True if the previous frame's warp pass has written the motion vector u/v map.
 };
 
 } // namespace MilkdropPreset

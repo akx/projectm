@@ -26,6 +26,7 @@ option(ENABLE_PLAYLIST "Enable building the playlist management library" ON)
 option(ENABLE_BOOST_FILESYSTEM "Force the use of boost::filesystem, even if the compiler supports C++17." OFF)
 option(ENABLE_SDL_UI "Build the SDL2-based developer test UI. Ignored when building with Emscripten or for Android." OFF)
 option(ENABLE_VERBOSE_LOGGING "Enables TRACE and DEBUG logging even in release builds, negatively affecting the performance." OFF)
+option(ENABLE_LAZY_MOTION_VECTOR_MAP "Only write the motion vector u/v map while motion vectors are visible. Faster, but motion vectors appear one frame late after a preset turns them on." ON)
 
 option(BUILD_TESTING "Build the libprojectM test suite" OFF)
 option(BUILD_DOCS "Build documentation" OFF)
@@ -181,6 +182,11 @@ add_compile_definitions(
         $<$<OR:$<CONFIG:Debug>,$<BOOL:${ENABLE_VERBOSE_LOGGING}>>:ENABLE_DEBUG_LOGGING>
         )
 
+# Always write the motion vector u/v map in the warp pass if the lazy update was disabled
+if(NOT ENABLE_LAZY_MOTION_VECTOR_MAP)
+    add_compile_definitions(PROJECTM_ALWAYS_WRITE_MOTION_VECTOR_MAP)
+endif()
+
 if(BUILD_DOCS)
     find_package(Doxygen REQUIRED)
     find_package(Sphinx REQUIRED breathe exhale)
@@ -250,6 +256,7 @@ message(STATUS "    Emscripten:                  ${ENABLE_EMSCRIPTEN}")
 if(CMAKE_SYSTEM_NAME STREQUAL Emscripten)
     message(STATUS "    - PThreads:              ${USE_PTHREADS}")
 endif()
+message(STATUS "    Lazy motion vector map:      ${ENABLE_LAZY_MOTION_VECTOR_MAP}")
 message(STATUS "    Use system GLM:              ${ENABLE_SYSTEM_GLM}")
 message(STATUS "    Use system projectM-eval:    ${ENABLE_SYSTEM_PROJECTM_EVAL}")
 if(ENABLE_SYSTEM_PROJECTM_EVAL)
