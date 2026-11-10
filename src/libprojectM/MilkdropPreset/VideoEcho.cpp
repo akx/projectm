@@ -10,7 +10,6 @@ VideoEcho::VideoEcho(const PresetState& presetState)
     , m_echoMesh(Renderer::VertexBufferUsage::DynamicDraw, true, true)
 {
     m_echoMesh.SetRenderPrimitiveType(Renderer::Mesh::PrimitiveType::TriangleStrip);
-    m_echoMesh.SetVertexCount(4);
 }
 
 void VideoEcho::Draw()
@@ -30,12 +29,11 @@ void VideoEcho::Draw()
 
     float const fOnePlusInvWidth = 1.0f + 1.0f / static_cast<float>(m_presetState.renderContext.viewportSizeX);
     float const fOnePlusInvHeight = 1.0f + 1.0f / static_cast<float>(m_presetState.renderContext.viewportSizeY);
-    m_echoMesh.Vertices().Set({{-fOnePlusInvWidth * aspectMultX, fOnePlusInvHeight * aspectMultY},
-                               {fOnePlusInvWidth * aspectMultX, fOnePlusInvHeight * aspectMultY},
-                               {-fOnePlusInvWidth * aspectMultX, -fOnePlusInvHeight * aspectMultY},
-                               {fOnePlusInvWidth * aspectMultX, -fOnePlusInvHeight * aspectMultY}});
+    m_quadVertices = {{{-fOnePlusInvWidth * aspectMultX, fOnePlusInvHeight * aspectMultY},
+                       {fOnePlusInvWidth * aspectMultX, fOnePlusInvHeight * aspectMultY},
+                       {-fOnePlusInvWidth * aspectMultX, -fOnePlusInvHeight * aspectMultY},
+                       {fOnePlusInvWidth * aspectMultX, -fOnePlusInvHeight * aspectMultY}}};
 
-    auto& colors = m_echoMesh.Colors();
     for (int i = 0; i < 4; i++)
     {
         auto const indexFloat = static_cast<float>(i);
@@ -50,12 +48,31 @@ void VideoEcho::Draw()
             m_shade[i][k] /= max;
             m_shade[i][k] = 0.5f + 0.5f * m_shade[i][k];
         }
-
-        colors[i] = {m_shade[i][0],
-                     m_shade[i][1],
-                     m_shade[i][2],
-                     1.0f};
     }
+
+    // Updating a buffer which is still in use by a previous draw call can stall the GPU pipeline, so
+    // first collect the quads of all passes, then upload them once and draw them in order.
+    m_echoMesh.Vertices().Get().clear();
+    m_echoMesh.Colors().Get().clear();
+    m_echoMesh.UVs().Get().clear();
+
+    if (m_presetState.videoEchoAlpha > 0.001f)
+    {
+        AddVideoEchoQuads();
+    }
+    else
+    {
+        AddGammaAdjustmentQuads();
+    }
+
+    const auto vertexCount = m_echoMesh.Vertices().Size();
+    if (m_echoMesh.Indices().Size() != vertexCount)
+    {
+        m_echoMesh.Indices().Resize(vertexCount);
+        m_echoMesh.Indices().MakeContinuous();
+    }
+
+    m_echoMesh.Update();
 
     auto shader = m_presetState.texturedShader.lock();
     shader->Bind();
@@ -69,13 +86,17 @@ void VideoEcho::Draw()
         m_sampler.Bind(0);
     }
 
-    if (m_presetState.videoEchoAlpha > 0.001f)
+    // The first quad replaces the image, all following quads are added on top.
+    Renderer::BlendMode::Set(true, Renderer::BlendMode::Function::One, Renderer::BlendMode::Function::Zero);
+
+    for (size_t firstVertex = 0; firstVertex < vertexCount; firstVertex += 4)
     {
-        DrawVideoEcho();
-    }
-    else
-    {
-        DrawGammaAdjustment();
+        m_echoMesh.Draw(firstVertex, 4);
+
+        if (firstVertex == 0)
+        {
+            Renderer::BlendMode::SetBlendFunction(Renderer::BlendMode::Function::One, Renderer::BlendMode::Function::One);
+        }
     }
 
     Renderer::BlendMode::SetBlendActive(false);
@@ -89,14 +110,12 @@ void VideoEcho::Draw()
     }
 }
 
-void VideoEcho::DrawVideoEcho()
+void VideoEcho::AddVideoEchoQuads()
 {
     auto const videoEchoZoom = m_presetState.videoEchoZoom;
     auto const videoEchoAlpha = m_presetState.videoEchoAlpha;
     auto const videoEchoOrientation = m_presetState.videoEchoOrientation % 4;
     auto const gammaAdj = m_presetState.gammaAdj;
-
-    Renderer::BlendMode::Set(true, Renderer::BlendMode::Function::One, Renderer::BlendMode::Function::Zero);
 
     for (int pass = 0; pass < 2; pass++)
     {
@@ -105,44 +124,30 @@ void VideoEcho::DrawVideoEcho()
         float const tempLow = 0.5f - 0.5f / zoom;
         float const tempHigh = 0.5f + 0.5f / zoom;
 
-        m_echoMesh.UVs().Set({{tempLow, tempLow},
-                              {tempHigh, tempLow},
-                              {tempLow, tempHigh},
-                              {tempHigh, tempHigh}});
+        std::array<Renderer::TextureUV, 4> uvs{{{tempLow, tempLow},
+                                                {tempHigh, tempLow},
+                                                {tempLow, tempHigh},
+                                                {tempHigh, tempHigh}}};
 
         // Flipping
         if (pass == 1)
         {
-            for (int vertex = 0; vertex < 4; vertex++)
+            for (auto& uv : uvs)
             {
                 if (videoEchoOrientation % 2 == 1)
                 {
-                    m_echoMesh.UVs()[vertex].SetU(1.0f - m_echoMesh.UVs()[vertex].U());
+                    uv.SetU(1.0f - uv.U());
                 }
                 if (videoEchoOrientation >= 2)
                 {
-                    m_echoMesh.UVs()[vertex].SetV(1.0f - m_echoMesh.UVs()[vertex].V());
+                    uv.SetV(1.0f - uv.V());
                 }
             }
         }
 
         float const mix = (pass == 1) ? videoEchoAlpha : 1.0f - videoEchoAlpha;
-        for (int vertex = 0; vertex < 4; vertex++)
-        {
-            m_echoMesh.Colors()[vertex] = {
-                mix * m_shade[vertex][0],
-                mix * m_shade[vertex][1],
-                mix * m_shade[vertex][2],
-                1.0f};
-        }
 
-        m_echoMesh.Update();
-        m_echoMesh.Draw();
-
-        if (pass == 0)
-        {
-            Renderer::BlendMode::SetBlendFunction(Renderer::BlendMode::Function::One, Renderer::BlendMode::Function::One);
-        }
+        AddQuad(uvs, mix);
 
         if (gammaAdj > 0.001f)
         {
@@ -160,30 +165,18 @@ void VideoEcho::DrawVideoEcho()
                     gamma = 1.0f;
                 }
 
-                for (int vertex = 0; vertex < 4; vertex++)
-                {
-                    m_echoMesh.Colors()[vertex] = {
-                        gamma * mix * m_shade[vertex][0],
-                        gamma * mix * m_shade[vertex][1],
-                        gamma * mix * m_shade[vertex][2],
-                        1.0f};
-                }
-
-                m_echoMesh.Colors().Update();
-                m_echoMesh.Draw();
+                AddQuad(uvs, gamma * mix);
             }
         }
     }
 }
 
-void VideoEcho::DrawGammaAdjustment()
+void VideoEcho::AddGammaAdjustmentQuads()
 {
-    m_echoMesh.UVs().Set({{0.0f, 0.0f},
-                          {1.0f, 0.0f},
-                          {0.0f, 1.0f},
-                          {1.0f, 1.0f}});
-
-    Renderer::BlendMode::Set(true, Renderer::BlendMode::Function::One, Renderer::BlendMode::Function::Zero);
+    const std::array<Renderer::TextureUV, 4> uvs{{{0.0f, 0.0f},
+                                                  {1.0f, 0.0f},
+                                                  {0.0f, 1.0f},
+                                                  {1.0f, 1.0f}}};
 
     auto const gammaAdj = m_presetState.gammaAdj;
     int const redrawCount = static_cast<int>(gammaAdj - 0.0001f) + 1;
@@ -200,22 +193,24 @@ void VideoEcho::DrawGammaAdjustment()
             gamma = 1.0f;
         }
 
-        for (int vertex = 0; vertex < 4; vertex++)
-        {
-            m_echoMesh.Colors()[vertex] = {
-                gamma * m_shade[vertex][0],
-                gamma * m_shade[vertex][1],
-                gamma * m_shade[vertex][2],
-                1.0f};
-        }
+        AddQuad(uvs, gamma);
+    }
+}
 
-        m_echoMesh.Update();
-        m_echoMesh.Draw();
+void VideoEcho::AddQuad(const std::array<Renderer::TextureUV, 4>& uvs, float brightness)
+{
+    auto& vertices = m_echoMesh.Vertices().Get();
+    auto& colors = m_echoMesh.Colors().Get();
+    auto& meshUVs = m_echoMesh.UVs().Get();
 
-        if (redraw == 0)
-        {
-            Renderer::BlendMode::Set(true, Renderer::BlendMode::Function::One, Renderer::BlendMode::Function::One);
-        }
+    for (int vertex = 0; vertex < 4; vertex++)
+    {
+        vertices.push_back(m_quadVertices[vertex]);
+        colors.emplace_back(brightness * m_shade[vertex][0],
+                            brightness * m_shade[vertex][1],
+                            brightness * m_shade[vertex][2],
+                            1.0f);
+        meshUVs.push_back(uvs[vertex]);
     }
 }
 
