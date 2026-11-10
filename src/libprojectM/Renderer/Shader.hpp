@@ -184,6 +184,14 @@ public:
      */
     static auto GetShaderLanguageVersion() -> GlslVersion;
 
+    /**
+     * @brief Checks if the linked program has an active uniform with the given name.
+     * Can be used to skip expensive calculations for values the shader doesn't use.
+     * @param uniform The uniform name.
+     * @return true if the program has an active uniform with this name, false if not.
+     */
+    auto HasUniform(const char* uniform) const -> bool;
+
 private:
     /**
      * @brief Compiles a single shader.

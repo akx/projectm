@@ -192,6 +192,11 @@ void Shader::SetUniformMat4x4(const char* uniform, const glm::mat4x4& values) co
     glUniformMatrix4fv(location, 1, GL_FALSE, glm::value_ptr(values));
 }
 
+auto Shader::HasUniform(const char* uniform) const -> bool
+{
+    return GetUniformLocation(uniform) >= 0;
+}
+
 auto Shader::GetUniformLocation(const char* uniform) const -> GLint
 {
     auto it = m_uniformLocations.find(uniform);
