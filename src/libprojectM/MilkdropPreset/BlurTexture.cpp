@@ -18,7 +18,7 @@ BlurTexture::BlurTexture()
     : m_blurMesh(Renderer::VertexBufferUsage::StaticDraw, false, true)
     , m_blurSampler(std::make_shared<Renderer::Sampler>(GL_CLAMP_TO_EDGE, GL_LINEAR))
 {
-    m_blurFramebuffer.CreateColorAttachment(0, 0);
+    glGenFramebuffers(static_cast<GLsizei>(m_blurFramebuffers.size()), m_blurFramebuffers.data());
 
     // Initialize blur mesh with a single fullscreen quad.
     m_blurMesh.SetRenderPrimitiveType(Renderer::Mesh::PrimitiveType::TriangleStrip);
@@ -46,6 +46,12 @@ BlurTexture::BlurTexture()
 
         m_blurTextures[i] = std::make_shared<Renderer::Texture>(textureName, 0, GL_TEXTURE_2D, 0, 0, false);
     }
+}
+
+BlurTexture::~BlurTexture()
+{
+    // Delete the framebuffers first, so the blur textures are no longer attached when they're deleted.
+    glDeleteFramebuffers(static_cast<GLsizei>(m_blurFramebuffers.size()), m_blurFramebuffers.data());
 }
 
 void BlurTexture::Initialize(const Renderer::RenderContext& renderContext)
@@ -143,14 +149,6 @@ void BlurTexture::Update(const Renderer::Texture& sourceTexture, const PerFrameC
     scale[2] = 1.0f / (tempMax - tempMin);
     bias[2] = -tempMin * scale[2];
 
-    // Remember previously bound framebuffer
-    GLint origReadFramebuffer;
-    GLint origDrawFramebuffer;
-    glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &origReadFramebuffer);
-    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &origDrawFramebuffer);
-
-    m_blurFramebuffer.Bind(0);
-
     Renderer::BlendMode::Set(true, Renderer::BlendMode::Function::One, Renderer::BlendMode::Function::Zero);
 
     for (unsigned int pass = 0; pass < passes; pass++)
@@ -174,6 +172,9 @@ void BlurTexture::Update(const Renderer::Texture& sourceTexture, const PerFrameC
         {
             return;
         }
+
+        // Each pass renders directly into its blur texture.
+        glBindFramebuffer(GL_FRAMEBUFFER, m_blurFramebuffers[pass]);
 
         blurShader->Bind();
         blurShader->SetUniformInt("texture_sampler", 0);
@@ -254,19 +255,16 @@ void BlurTexture::Update(const Renderer::Texture& sourceTexture, const PerFrameC
 
         // Draw fullscreen quad
         m_blurMesh.Draw();
-
-        // Save to blur texture
-        m_blurTextures[pass]->Bind(0);
-        glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, m_blurTextures[pass]->Width(), m_blurTextures[pass]->Height());
-        m_blurTextures[pass]->Unbind(0);
     }
+
+    // Don't leave the last source texture bound.
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, 0);
 
     Renderer::Mesh::Unbind();
     Renderer::BlendMode::Set(false, Renderer::BlendMode::Function::SourceAlpha, Renderer::BlendMode::Function::OneMinusSourceAlpha);
 
-    // Bind previous framebuffer and reset viewport size
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, origReadFramebuffer);
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, origDrawFramebuffer);
+    // Reset viewport size. The caller is responsible for binding its own framebuffer again.
     glViewport(0, 0, sourceTexture.Width(), sourceTexture.Height());
 
     Renderer::Shader::Unbind();
@@ -355,20 +353,22 @@ void BlurTexture::AllocateTextures(const Renderer::Texture& sourceTexture)
         int width2 = ((width + 3) / 16) * 16;
         int height2 = ((height + 3) / 4) * 4;
 
-        if (i == 0)
-        {
-            // Only use as much space as needed to render the blur textures.
-            m_blurFramebuffer.SetSize(width2, height2);
-        }
-
         std::string textureName;
         if (i % 2 == 1)
         {
             textureName = "blur" + std::to_string(i / 2 + 1);
         }
 
-        // This will automatically replace any old texture.
-        m_blurTextures[i] = std::make_shared<Renderer::Texture>(textureName, width2, height2, false);
+        // Detach the old texture from its framebuffer before replacing (and thus deleting) it.
+        glBindFramebuffer(GL_FRAMEBUFFER, m_blurFramebuffers[i]);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 0, 0);
+
+        // The blur passes render directly into the textures, so use a format which is guaranteed to be
+        // color-renderable. The blur shaders always write an alpha value of 1.
+        m_blurTextures[i] = std::make_shared<Renderer::Texture>(textureName, GL_TEXTURE_2D, width2, height2, 0,
+                                                                GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, false);
+
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_blurTextures[i]->TextureID(), 0);
     }
 
     m_sourceTextureWidth = sourceTexture.Width();

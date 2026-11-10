@@ -108,15 +108,15 @@ void MilkdropPreset::RenderFrame(const libprojectM::Audio::FrameAudioData& audio
     m_framebuffer.Bind(m_currentFrameBuffer + 2);
     m_perPixelMesh.Draw(m_state, m_perFrameContext, m_perPixelContext);
 
-    // We now draw to the current framebuffer.
-    m_framebuffer.Bind(m_currentFrameBuffer);
-
     // Update blur textures
     {
         const auto warpedImage = m_framebuffer.GetColorAttachmentTexture(m_previousFrameBuffer, 0);
         assert(warpedImage.get());
         m_state.blurTexture.Update(*warpedImage, m_perFrameContext);
     }
+
+    // We now draw to the current framebuffer. The blur update binds its own framebuffers.
+    m_framebuffer.Bind(m_currentFrameBuffer);
 
     // Draw audio-data-related stuff
     for (auto& shape : m_customShapes)

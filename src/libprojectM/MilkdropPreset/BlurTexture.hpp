@@ -4,7 +4,6 @@
  */
 #pragma once
 
-#include <Renderer/Framebuffer.hpp>
 #include <Renderer/Mesh.hpp>
 #include <Renderer/RenderContext.hpp>
 #include <Renderer/Shader.hpp>
@@ -49,7 +48,7 @@ public:
     /**
      * Destructor.
      */
-    virtual ~BlurTexture() = default;
+    virtual ~BlurTexture();
 
     /**
      * @brief Initializes the blur texture.
@@ -73,6 +72,8 @@ public:
 
     /**
      * @brief Renders the required blur passes on the given texture.
+     * @note If any blur level is in use, this binds other framebuffers and doesn't restore the
+     *       previous binding. The caller must bind its own framebuffer again afterwards.
      * @param sourceTexture The texture to create the blur levels from.
      * @param perFrameContext The per-frame variables.
      */
@@ -114,7 +115,7 @@ private:
     int m_sourceTextureWidth{};  //!< Width of the source texture used to create the blur textures.
     int m_sourceTextureHeight{}; //!< Height of the source texture used to create the blur textures.
 
-    Renderer::Framebuffer m_blurFramebuffer;                                        //!< The framebuffer used to draw the blur textures.
+    std::array<GLuint, NumBlurTextures> m_blurFramebuffers{};                       //!< One framebuffer per pass, with the pass' blur texture attached.
     std::shared_ptr<Renderer::Sampler> m_blurSampler;                               //!< The blur sampler.
     std::array<std::shared_ptr<Renderer::Texture>, NumBlurTextures> m_blurTextures; //!< The blur textures for each pass.
     BlurLevel m_blurLevel{BlurLevel::None};                                         //!< Current blur level.
